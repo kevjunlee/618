@@ -1,0 +1,104 @@
+---
+title: "si618_hw7_kjunwonl"
+author: "Kjunwonl"
+date: "10/30/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(moderndive)
+library(data.table)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+Part 1
+
+Question 1:
+First the provided TSV data file is loaded into R using csv.read function, seperated by column names.
+```{r}
+country <- read.csv("countrydata_withregion.tsv", sep = "\t")
+head(country, 15)
+```
+
+Question 2:
+
+Logarithms (base 2) of the area and the population of each country are computed and used to produce the following scatter plot using ggplot() + geom_point() function.
+
+```{r echo=FALSE, fig.width = 7}
+ggplot(country, mapping = aes(x = log2(area), y = log2(population))) + geom_point()
+```
+
+Question 3:
+
+The areas and populations of all countries in a region are summed up using the aggregate() function, respectively. Then the following two pie charts are created using the pie() function.
+```{r echo=FALSE, fig.width = 7}
+agg_area <- aggregate(country$area, by = list(country$region), sum, na.rm = TRUE)
+pie(agg_area[,2],agg_area[,1], main = "Area of Regions")
+```
+```{r echo=FALSE, fig.width = 7}
+agg_pop <- aggregate(country$population, by = list(country$region), sum, na.rm = TRUE)
+pie(agg_pop[,2],agg_pop[,1], main = "Population of Regions")
+```
+
+Question 4:
+
+A new data frame is created to contain the population per sq km of each region using the data.frame()function. The data frame is then sorted by population per sq km in decreasing order with the help of thereorder() function. Finally, the following bar plot is created using ggplot(). In order to rotate the x axis labels, I used theme(axis.text.x=element_text(angle=45,hjust=0.5,vjust=0.5)) to make it be seen more clearly.
+```{r echo=FALSE, fig.width = 7}
+pop_sq_km_regions <- data.frame(region = agg_pop$Group.1, popsqkm =(agg_pop$x / agg_area$x))
+ggplot(pop_sq_km_regions, mapping = aes(reorder(x = region, -popsqkm), y=popsqkm)) + geom_bar(stat = "identity") + labs(x = "Regions", y = "Population per sq km of region") + theme(axis.text.x=element_text(angle=45,hjust=0.5,vjust=0.5))
+
+```
+
+Part 2
+
+Question 5:
+First the provided TSV data file is loaded into R using csv.read function, seperated by column names. I then mutated columns city, state and main_category in order to factor them. I then used na.omit() to clear all my business data of empty values. I then created a summary of this data.
+
+```{r}
+business <- read.csv("businessdata.tsv", sep = "\t")
+newbusiness <- business %>% mutate(city = factor(city)) %>% mutate(state = factor(state)) %>% mutate(main_category = factor(main_category))
+finalbusiness <- na.omit(newbusiness)
+summary(finalbusiness)
+```
+
+Question 6:
+
+Histograms for star ratings using ggplot() is shown below with a binwidth = 1.
+
+```{r echo=FALSE, fig.width = 7}
+ggplot(business, aes(x = stars)) + geom_histogram(binwidth = 1, aes(fill = state), alpha = 1/2) + facet_grid(~ state) + labs(title = "Histogram of star ratings") 
+```
+
+Question 7:
+Histograms of review counts are plotted with ggplot() function and a binwidth of 10
+```{r echo=FALSE, fig.width = 7}
+ggplot(business, mapping = aes(x=review_count)) + geom_histogram(binwidth = 10, alpha = 1/2) + labs(title = "Histogram of review counts")
+```
+
+We can see that the distribution of review counts has a long tail. To zoom in on the bars to the left of the 200 mark, we use the data.table syntaxor the subset() function to select just the data with review count<= 200. Afterwards, I plotted the histogram again with binwidth = 1.
+
+```{r echo=FALSE, fig.width = 7}
+subsetted_data <- subset(business, review_count<=200)
+ggplot(subsetted_data, mapping = aes(x=review_count)) + geom_histogram(binwidth = 1, alpha = 1/2) + labs(title = "Histogram of review counts (filtered)")
+```
+
+Question 8:
+
+```{r echo=FALSE, fig.width = 7}
+ggplot(business, mapping = aes(x = state, y = stars)) + geom_boxplot(aes(color=state, fill = state), alpha = 1/2) + labs(title = "Boxplot of star ratings") 
+```
+
+Question 9:
+
+```{r echo=FALSE, fig.width = 7}
+business_count <- business %>% group_by(state) %>% summarize(count = n())
+
+biz_count_bar <- ggplot(business_count, mapping = aes(reorder(x=state, -count), y=count)) + geom_bar(stat = "identity", alpha = 0.8) + labs(x= "state", y="count")
+
+biz_count_bar
+```
+

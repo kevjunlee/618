@@ -1,0 +1,113 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+SI 618 Homework 8
+=====================
+
+## Getting Data from SQLite Database (10 points)
+
+In the data preparation step, a SQLite database has been created and populated with vehicle data. Now the data in the database is retrieved using R package DBI and RSQLite and stored in a data frame named vehicles. Here are the first 10 rows of the data frame, and the summary. 
+
+```{r echo=FALSE}
+library(DBI) 
+library(RSQLite)
+library(ggplot2)
+
+dbdriver = dbDriver("SQLite")
+connect = dbConnect(dbdriver, dbname = "vehicles.db")
+vehicles = dbGetQuery(connect, "select * from vehicle")
+vehicles = na.omit(vehicles)
+
+#Enter your code here to produce the first 10 row and summary
+head(vehicles, n=10)
+```
+
+## Converting to Factors (10 points)
+
+To make downstream analysis easier, we convert the data in columns vehicles\$make, vehicles\$VClass, vehicles\$cylinders, and vehicles\$trany into factors. Here is the summary of the data frame after the conversion. 
+
+```{r echo=FALSE}
+vehicles[,"make"] <- as.factor(vehicles[,"make"])
+vehicles[,"VClass"] <- as.factor(vehicles[,"VClass"])
+vehicles[,"cylinders"] <- as.factor(vehicles[,"cylinders"])
+vehicles[,"trany"] <- as.factor(vehicles[,"trany"])
+
+summary(vehicles)
+```
+
+## Filter Down Data (30 points)
+
+We will filter down the data such that only 'VClass' with more than 40 vehicles are kept. Here is the summary of the data frame after this subsetting step. 
+
+```{r echo=FALSE}
+library(data.table)
+vehicles = as.data.table(vehicles)
+
+library(dplyr)
+
+tt <- table(vehicles$VClass)
+vehicles_subset <- subset(vehicles, (VClass %in% names(tt[tt>40])))
+
+summary(vehicles_subset)
+```
+
+## Fuel Economy of Vehicles of Different Makes (50 points)
+
+For each vehicle class in filtered down data, we plot the mean combined MPG (average of data in vehicles\$comb08) for each vehicle maker every year. And then, we compute the mean combined MPG in all years for each vehicle maker, and plot it. Both charts are created with ggplot(). Note how the vehicle makers are ranked in the second plot. Use **fig.width=16**. To suppress messages from ggplot regarding groups with only one observation, set **warning=FALSE, message=FALSE** (we recommend setting this option only once your code is complete).
+
+```{r, fig.width=16, warning=FALSE, message=FALSE}
+x <- vehicles_subset[, "VClass"]
+x <- unique(x)
+class_list <- as.list(x)
+
+graphing <- function(name1) {
+  test <- vehicles_subset[VClass == name1]
+
+  test1 <- test %>% group_by(year, make) %>% summarise(a_mean=(mean(comb08)))
+  one <-ggplot(test1,aes(x=year, y=a_mean, color = make))+geom_line()
+
+  test2 <- test %>% group_by(make) %>% summarise(a_mean=(mean(comb08)))
+
+
+  test2 <- test2[c("make", "a_mean")]
+  test2
+  two <- ggplot(data=test2, aes(x=reorder(make, -a_mean), y=a_mean)) +
+geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+  print(one)
+  print(two)
+}
+
+graphing("Two Seaters")
+graphing("Subcompact Cars")
+graphing("Vans")
+graphing("Compact Cars")
+graphing("Midsize Cars")
+graphing("Large Cars")
+graphing("Small Station Wagons")
+graphing("Midsize-Large Station Wagons")
+graphing("Small Pickup Trucks")
+graphing("Standard Pickup Trucks")
+graphing("Special Purpose Vehicle 2WD")
+graphing("Special Purpose Vehicles")
+graphing("Minicompact Cars")
+graphing("Special Purpose Vehicle 4WD")
+graphing("Midsize Station Wagons")
+graphing("Small Pickup Trucks 2WD")
+graphing("Standard Pickup Trucks 2WD")
+graphing("Standard Pickup Trucks 4WD")
+graphing("Vans, Cargo Type")
+graphing("Vans, Passenger Type")
+graphing("Minivan - 2WD")
+graphing("Sport Utility Vehicle - 4WD")
+graphing("Minivan - 4WD")
+graphing("Sport Utility Vehicle - 2WD")
+graphing("Small Pickup Trucks 4WD")
+graphing("Small Sport Utility Vehicle 4WD")
+graphing("Standard Sport Utility Vehicle 2WD")
+graphing("Standard Sport Utility Vehicle 4WD")
+graphing("Small Sport Utility Vehicle 2WD")
+
+```

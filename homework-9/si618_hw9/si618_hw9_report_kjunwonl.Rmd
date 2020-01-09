@@ -1,0 +1,133 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+SI 618 Homework 9
+=====================
+
+## Homework Overview
+The purpose of this homework is to give you more experience with data aggregation in R, visualization using ggplot() and time-series analysis on a real-world dataset. You will be analyzing Wikipedia page popularity over the past few years. The dataset is from (https://www.kaggle.com/c/web-traffic-time-series-forecasting/data), but we have provided the CSV (page_views.csv) for you. We have also provided an example document (si618_hw9_solution.html) of the intended solution.
+
+## Question 0: Loading data and preprocessing (5 points)
+
+Load the data (page_views.csv), convert to data.table and remove NA. (There are many ways to handle missing data, we choose to remove rows for the purpose of this assignment.) 
+```{r, fig.width=10, echo=FALSE, warning=FALSE, message=FALSE}
+library(DBI)
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(grid)
+library(gridExtra)
+
+page_views <- read.csv("page_views.csv", encoding = "UTF-8")
+page_views <- na.omit(page_views)
+page_views <- data.table(page_views)
+```
+
+
+## Question 1: Average Popularity Analysis (20 points)
+
+#### Question 1-a: Plot the distribution of the average popularity of pages. (10 points)
+
+Hint: You can use stat_ecdf of ggplot to plot a CDF (cumulative distribution function) 
+
+Hint2: You can use the scales library and use the comma format for the labels for the x-axis to be similar to what is produced here.
+
+Your plot should look something like this. Note that there is one data point that will be removed while creating this plot. This will happen due to the use of logarithmic scale. You can handle that in different ways. Given that this only affects one row, in this case we chose to ignore it. You can plot this distribution in linear scale first to see why logairthmic scale is needed.
+```{r, fig.width=10, echo=FALSE, warning=FALSE}
+#str(page_views)
+dtable <- data.table(Page = page_views$Page, avg_pop = rowMeans(page_views[,-1]))
+ggplot(dtable, aes(avg_pop)) + stat_ecdf() + scale_x_log10(labels = comma) + labs(x = "Average Popularity Across Days", y = "Fraction of Articles(ECDF)")
+
+```
+
+
+#### Question 1-b: What are the top-10 and bottom-10 pages with regards to popularity? (10 points)
+```{r, fig.width=10, echo=FALSE, warning=FALSE}
+#str(dtable)
+dtable_pop <- dtable[order(-avg_pop)]
+dtable_unpop <- dtable[order(avg_pop)]
+#Top 10 pages 
+kable(head(dtable_pop,10), format="html", caption = "Top-10 Pages")
+#Bottom 10 pages 
+kable(head(dtable_unpop,10), format="html", caption = "Bottom-10 Pages")
+```
+
+
+## Question 2: Day-of-the-week Effect (15 points)
+
+Is there a day-of-the-week effect on Wikipedia? On average, which day sees the most Wikipedia views (total across all articles)? What about the least views?
+```{r, fig.width=10, echo=FALSE, warning=FALSE}
+days_of_week <- page_views[,-1]
+
+w <- 1
+for (i in colnames(days_of_week)){
+  colnames(days_of_week)[w] <- substring(i, 2)
+  x <- colnames(days_of_week)[w]
+  name <- as.Date(x, "%Y.%m.%d")
+  name <- format(name, "%A")
+  colnames(days_of_week)[w] <- name
+  w <- w+1
+}
+days_of_week2 <- data.table(weekday = names(days_of_week), sum = colSums(days_of_week))
+days_of_week3 <- days_of_week2[, .(views = mean(sum)), weekday]
+days_of_week3 <- days_of_week3[order(-views)]
+
+days_of_week3
+
+```
+
+## Question 3: Wikipedia views per day (30  points)
+
+Plot Wikipedia views per day (total across all pages) over time. Then plot the de-seasonified data where the day-of-the-week effects are removed. Put those in the same plot using grid.arrange. (Note: You will need to change the figure width to see the plots properly. You dont have to match the exact same width we have here, just make sure it is readable.) 
+
+```{r, fig.width=13, echo=FALSE, warning=FALSE}
+per_day <- data.table(date = as.Date(substring(names(page_views[,!"Page"]),2),'%Y.%m.%d'), views = colSums(page_views[,!"Page"]), weekday = weekdays(as.Date(substring(names(page_views[,!"Page"]),2),'%Y.%m.%d')))
+deseas <- function(var, weekday) {
+  resid(lm(var ~ factor(weekday), na.action = "na.exclude")) + mean(var, na.rm = TRUE)
+} 
+per_day = per_day[,c("views_ds") := list(deseas(views,weekday))]
+
+plot1<- ggplot(per_day, aes(date,views)) + geom_line() + scale_y_log10(labels = comma) + labs(x = "Date", y = "Views", title = "Original")
+
+plot2<- ggplot(per_day, aes(date,views_ds)) + geom_line() + scale_y_log10(labels = comma) + labs(x = "Date", y = "Views", title = "Day-of-Week Effects Removed")
+
+grid.arrange(plot1, plot2, nrow = 1, ncol = 2, top = "Wikipedia Views Per Day")
+```
+
+## Question 4: Repeat Q3 for the top 50K articles (30 points)
+
+Repeat Q3 for the top 50K articles. For this you will need to first find the top 50K pages and limit your dataset to those. We define these top pages as those with the largest number of overall page views. Next you need to find the day of the week effect for this subset and plot the two time series.
+
+```{r, fig.width=13, echo=FALSE, warning=FALSE}
+top50k <- page_views[,sum := rowSums(.SD), .SDcol = 2]
+top50k <- page_views[order(-sum)]
+top50k <- head(top50k, n=50000)
+top50k <- data.table(date = as.Date(substring(names(page_views[,!"Page"]),2),'%Y.%m.%d'), views = colSums(page_views[,!"Page"]), weekday = weekdays(as.Date(substring(names(page_views[,!"Page"]),2),'%Y.%m.%d')))
+
+deseas <- function(var, weekday) {
+  resid(lm(var ~ factor(weekday), na.action = "na.exclude")) + mean(var, na.rm = TRUE)
+} 
+top50k = top50k[,c("views_ds") := list(deseas(views,weekday))]
+
+plot3<- ggplot(top50k, aes(date,views)) + geom_line() + scale_y_log10(labels = comma) + labs(x = "Date", y = "Views", title = "Original")
+
+plot4<- ggplot(top50k, aes(date,views_ds)) + geom_line() + scale_y_log10(labels = comma) + labs(x = "Date", y = "Views", title = "Day-of-Week Effects Removed")
+
+grid.arrange(plot3, plot4, nrow = 1, ncol = 2, top = "Wikipedia Views Per Day")
+```
+
+
+## What to submit?
+A zip file named 'si618_hw9_youruniquename.zip' containing:
+
+* The R Markdown file named 'si618_hw9_report_youruniquename.Rmd'
+* The HTML or PDF report generated by your R Markdown file that should similar to si618_hw9_solution.html
+
+
+
+
+

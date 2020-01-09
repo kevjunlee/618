@@ -1,0 +1,87 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library(ggplot2)
+library(plotly)
+
+incomeConData <- read.csv('incomeConsumption.csv')
+incomeProData <- read.csv('incomeProduction.csv')
+incomeExpData <- read.csv('incomeExpenditure.csv')
+```
+
+```{r}
+ggplot(incomeConData, mapping = aes(x=GDPperCapita2014, y = TotalC2014)) + geom_point()
+```
+
+```{r}
+ggplot(incomeProData, mapping = aes(x=GDPperCapita2014, y = TotalP2014)) + geom_point()
+```
+
+```{r}
+ggplot(incomeExpData, mapping = aes(x=GDPperCapita2014, y = TotalE2014)) + geom_point() 
+```
+
+```{r}
+homelessConsumption <- read.csv("consumptionHomeless.csv")
+p <- plot_ly(homelessConsumption, x = ~TotalC2014, y = ~GDP_per_Capita2014, z = ~Count, color = ~TotalC2014, colors = c('#BF382A', '#00BFFF')) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Total Consumption (BTU)'),
+                     yaxis = list(title = 'State GDP Per Capita'),
+                     zaxis = list(title = 'Total Count of Homeless')))
+p
+```
+
+```{r}
+homelessProduction <- read.csv("productionHomeless.csv")
+p <- plot_ly(homelessProduction, x = ~TotalP2014, y = ~GDP_per_Capita2014, z = ~Count, color = ~TotalP2014, colors = c('#BF382A', '#00BFFF')) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Total Production (BTU)'),
+                     yaxis = list(title = 'State GDP Per Capita'),
+                     zaxis = list(title = 'Total Count of Homeless')))
+p
+```
+
+```{r}
+homelessExpenditure <- read.csv("expenditureHomeless.csv")
+p <- plot_ly(homelessExpenditure, x = ~TotalE2014, y = ~GDP_per_Capita2014, z = ~Count, color = ~TotalE2014, colors = c('#BF382A', '#00BFFF')) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Total Expenditure (BTU)'),
+                     yaxis = list(title = 'State GDP Per Capita'),
+                     zaxis = list(title = 'Total Count of Homeless')))
+p
+```
+
+```{r}
+binnedc <- read.csv("binnedconsumption.csv")
+p<-ggplot(data=binnedc, aes(x=factor(consumption_bucket), y=homeless_count)) +
+  geom_bar(stat="identity")
+p
+```
+
+```{r}
+binnedp <- read.csv("binnedproduction.csv")
+p<-ggplot(data=binnedp, aes(x=factor(production_bucket), y=homeless_count)) +
+  geom_bar(stat="identity")
+p
+```
+
+```{r}
+binnede <- read.csv("binnedexpenditure.csv")
+p<-ggplot(data=binnede, aes(x=factor(expenditure_bucket), y=homeless_count)) +
+  geom_bar(stat="identity")
+p
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
