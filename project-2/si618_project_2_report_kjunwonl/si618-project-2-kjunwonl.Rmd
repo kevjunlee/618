@@ -1,0 +1,249 @@
+---
+title: "Final"
+author: "Kjunwonl"
+date: "12/4/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(moderndive)
+library(ggplot2)
+library(dplyr)
+library(data.table)
+```
+
+## R Markdown
+
+```{r}
+lifting <- fread("openpowerlifting-2019-11-20.csv", sep="auto")
+```
+#adding binary result of 0 = no and 1 = yes for equipments and testing columns, also F = 1 M = 0
+```{r}
+set_equip <- function(str){
+  typeof(str)
+  #for (i in length(str)) {
+    if(str == "Wraps") return (3)
+    else if (str == "Raw") return (0)
+    else if (str == "Single-ply") return(1)
+    else return (2)
+  #}
+}
+
+lifting <-  lifting [, Equip := mapply(set_equip,Equipment)]
+
+
+lifting$test <- as.numeric(lifting$Tested == "Yes")
+lifting$Gender <- as.numeric(lifting$Sex == "F")
+```
+
+#Get rid of irrelevant columns like Squat4Kg, Bench4Kg, Deadlift4Kg, Tested (categorical not the binary one I created), BirthYearClass and Country
+```{r}
+lifting[,c("Squat4Kg", "Bench4Kg", "Deadlift4Kg", "Tested", "Country", "BirthYearClass"):=NULL]
+```
+
+#getting rid of empty rows with empty cells
+```{r}
+lifting[lifting==""] <- NA
+lifting <- na.omit(lifting)
+```
+
+1.
+#Cluster Analysis: for body weight
+since all federations use different weight classes, I am going to select the most commonly used federation.
+
+```{r}
+sort(table(lifting[,28]))
+```
+USAPL most commonly used federation so I will filter my data to only that
+
+```{r}
+library(stringr)
+
+lifting.x = lifting[,c(8, 9, 28)]
+#remove all + in weightClassKg
+lifting.x = lifting.x[,WeightClassKg := str_replace_all(WeightClassKg,"\\+","")]
+#Use data only from the USAPL federation
+lifting.x <- lifting.x[Federation == "USAPL"]
+#convert to numeric for weight classes
+lifting.x$WeightClassKg <- as.numeric(as.character(lifting.x$WeightClassKg))
+#removing the Federation column for clustering method since it is categorical
+lifting.x[,c("Federation"):=NULL]
+lifting.x[lifting.x==""] <- NA
+lifting.x <- na.omit(lifting.x)
+
+kmeans.result = kmeans(lifting.x, centers=15) # we did no centering or scaling here. as usual, consider if those are needed for your data
+kmeans.result$centers
+kmeans.result$cluster
+centers = kmeans.result$centers[kmeans.result$cluster, ] 
+distances = sqrt(rowSums((lifting.x - centers)^2))
+outliers = order(distances, decreasing=T)[1:20]
+
+pch = rep(1, nrow(lifting.x))
+pch[outliers] = 2:(length(outliers)+1)
+col <- rep("red", nrow(lifting.x))
+col[outliers] = "blue"
+pairs(lifting.x, pch=pch, col=col)
+```
+
+```{r}
+kmeans.result
+print(outliers)
+```
+
+```{r}
+ggplot(lifting.x, aes(x=BodyweightKg, y=WeightClassKg, color=col, pch=pch)) + geom_point() + scale_shape_identity()
+```
+
+2.
+#Analysis: PCA
+How does body weight, avg squat, avg bench, and avg deadlift relate to each other?
+```{r}
+factor_list <- c("Equip", "Best3SquatKg", "Best3BenchKg", "Best3DeadliftKg")
+cols<- factor_list
+lifting1 <- lifting
+
+lifting2 <- lifting1[, (cols) := lapply(.SD, function(x) (x-mean(x))/sd(x) ),.SDcols = cols ]
+```
+
+```{r}
+lifting2[,c("Equip", "Best3SquatKg", "Best3BenchKg", "Best3DeadliftKg")]
+```
+
+```{r}
+lifting.pca <- prcomp(lifting2[,c("Equip", "Best3SquatKg", "Best3BenchKg", "Best3DeadliftKg")], center = TRUE,scale. = TRUE)
+
+
+summary(lifting.pca)
+```
+
+```{r}
+str(lifting.pca)
+lifting.pca$sdev 
+lifting.pca.var = lifting.pca$sdev^2
+pve = 100 * (lifting.pca.var / sum(lifting.pca.var))
+perc_data = data.table(percent=pve, PC=1:length(pve))
+ggplot(perc_data, aes(x=PC, y=percent)) + 
+  geom_line() +
+  geom_text(aes(label=round(percent, 2)), size=4, vjust=-.5) +
+  ylab("Proportion of Variance Explained\n") +
+  xlab("Principle Component")
+```
+```{r}
+lifting.pca$x #this data does not give us the categories, we can add them
+pca_data <- data.frame(lifting.pca$x, Species=lifting$AgeClass)
+head(pca_data)
+```
+
+```{r}
+ggplot(pca_data, aes(x=PC1, y=PC2, color=Species)) + geom_point()
+```
+```{r}
+lifting.pca$rotation
+rotation_data <- data.table(lifting.pca$rotation, variable=row.names(lifting.pca$rotation))
+ggplot(rotation_data) + 
+  geom_segment(aes(xend=PC1, yend=PC2), x=0, y=0, arrow=arrow(length = unit(0.05, "inches"), type = "closed")) + 
+  geom_text(aes(x=PC1, y=PC2, label=variable), hjust=0, size=3, color='red') + 
+  xlim(-1.,1) + 
+  ylim(-1.,1.)
+```
+
+```{r}
+factor_list <- c("test", "Best3SquatKg", "Best3BenchKg", "Best3DeadliftKg")
+cols<- factor_list
+lifting3 <- lifting
+lifting4 <- lifting3[, (cols) := lapply(.SD, function(x) (x-mean(x))/sd(x) ),.SDcols = cols ]
+```
+
+```{r}
+lifting4[,c("test", "Best3SquatKg", "Best3BenchKg", "Best3DeadliftKg")]
+```
+
+```{r}
+lifting.pca2 <- prcomp(lifting4[,c("test", "Best3SquatKg", "Best3BenchKg", "Best3DeadliftKg")], center = TRUE,scale. = TRUE)
+
+
+summary(lifting.pca2)
+```
+
+```{r}
+str(lifting.pca2)
+lifting.pca2$sdev 
+lifting.pca.var2 = lifting.pca2$sdev^2
+pve2 = 100 * (lifting.pca.var2 / sum(lifting.pca.var2))
+perc_data2 = data.table(percent=pve2, PC=1:length(pve2))
+ggplot(perc_data2, aes(x=PC, y=percent)) + 
+  geom_line() +
+  geom_text(aes(label=round(percent, 2)), size=4, vjust=-.5) +
+  ylab("Proportion of Variance Explained\n") +
+  xlab("Principle Component")
+```
+
+```{r}
+lifting.pca2$x #this data does not give us the categories, we can add them
+pca_data2 <- data.frame(lifting.pca2$x, Species=lifting$AgeClass)
+head(pca_data2)
+```
+
+```{r}
+ggplot(pca_data2, aes(x=PC1, y=PC2, color=Species)) + geom_point()
+```
+
+```{r}
+lifting.pca2$rotation
+rotation_data2 <- data.table(lifting.pca2$rotation, variable=row.names(lifting.pca2$rotation))
+ggplot(rotation_data2) + 
+  geom_segment(aes(xend=PC1, yend=PC2), x=0, y=0, arrow=arrow(length = unit(0.05, "inches"), type = "closed")) + 
+  geom_text(aes(x=PC1, y=PC2, label=variable), hjust=0, size=3, color='red') + 
+  xlim(-1.,1) + 
+  ylim(-1.,1.)
+```
+#Variable/Data Analysis:
+
+```{r}
+library(psych)
+
+lifting <- fread("openpowerlifting-2019-11-20.csv", sep="auto")
+set_equip <- function(str){
+  typeof(str)
+  #for (i in length(str)) {
+    if(str == "Wraps") return (3)
+    else if (str == "Raw") return (0)
+    else if (str == "Single-ply") return(1)
+    else return (2)
+  #}
+}
+
+lifting <-  lifting [, Equip := mapply(set_equip,Equipment)]
+
+
+lifting$test <- as.numeric(lifting$Tested == "Yes")
+lifting$Gender <- as.numeric(lifting$Sex == "F")
+
+lifting[,c("Squat4Kg", "Bench4Kg", "Deadlift4Kg", "Tested", "Country", "BirthYearClass"):=NULL]
+
+lifting[lifting==""] <- NA
+lifting <- na.omit(lifting)
+```
+
+```{r}
+ggplot(lifting, aes(Age)) + geom_histogram(color = "white", binwidth = 4)
+```
+```{r}
+summary(lifting$Age)
+```
+
+```{r}
+ggplot(lifting, aes(x = AgeClass, y = Wilks)) + geom_col()
+```
+
+```{r}
+ggplot(lifting, aes(AgeClass, TotalKg, fill = Equip)) + geom_bar(stat = "identity", position = "dodge")
+```
+
+```{r}
+ggplot(lifting, aes(AgeClass, TotalKg, fill = test)) + geom_bar(stat = "identity", position = "dodge")
+```
